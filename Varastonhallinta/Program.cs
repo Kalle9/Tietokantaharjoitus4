@@ -1,4 +1,9 @@
-﻿namespace Varastonhallinta
+﻿using Microsoft.EntityFrameworkCore.Update;
+using System;
+using System.ComponentModel.Design;
+using System.Reflection.Metadata.Ecma335;
+
+namespace Varastonhallinta
 {
     internal class Program
     {
@@ -9,6 +14,7 @@
 
             while (quit == false)
             {
+                Console.WriteLine();
                 Console.WriteLine("1 - Lisää uusi tuote");
                 Console.WriteLine("2 - Poista tuote");
                 Console.WriteLine("3 - Tulosta eri tuotteiden määrät");
@@ -17,12 +23,12 @@
                 Console.WriteLine("0 - Lopeta sovellus");
                 Console.Write("Valitse mitä haluat tehdä: ");
                 input = Console.ReadLine();
+                Console.Clear();
 
                 switch (input)
                 {
                     case "1":
                         // Tuotteen lisäys
-                        Console.Clear();
 
                         // Uuden tuotteen muuntajat
                         string tuotenimi;
@@ -47,7 +53,24 @@
                         break;
                     case "2":
                         // Tuotteen poisto
-                        RemoveProductFromDB();
+                        int tuotteenIdp;
+
+                        Console.WriteLine("Syötä 0 jos haluat poistua");
+                        Console.Write("Syötä tuotteen id, jonka haluat poistaa tietokannasta: ");
+                        int.TryParse(Console.ReadLine(), out tuotteenIdp);
+                        if (tuotteenIdp == 0)
+                        {
+                            break;
+                        }
+
+                        if (RemoveProductFromDB(tuotteenIdp))
+                        {
+                            Console.WriteLine("Tuotteen poisto onnistui");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Tuotteen poisto epäonnistui");
+                        }
                         break;
                     case "3":
                         // Tuotteiden määrän tulostus
@@ -59,7 +82,28 @@
                         break;
                     case "5":
                         // Tuotteen nimen muokkaus
-                        ChangeProductNameInDB();
+                        int tuotteenIdm;
+                        string uusiNimi;
+
+                        Console.WriteLine("Syötä 0 jos haluat poistua");
+                        Console.Write("Syötä tuotteen id, jonka nimeä haluat muokata: ");
+                        int.TryParse(Console.ReadLine(), out tuotteenIdm);
+                        if (tuotteenIdm == 0)
+                        {
+                            break;
+                        }
+
+                        Console.Write("Syötä tuotteen uusi nimi: ");
+                        uusiNimi = Console.ReadLine();
+
+                        if (ChangeProductNameInDB(tuotteenIdm, uusiNimi))
+                        {
+                            Console.WriteLine("Tuotteen muokkaus onnistui");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Tuotteen muokkaus epäonnistui");
+                        }
                         break;
                     case "0":
                         // Sovelluksen lopetus
@@ -75,11 +119,18 @@
             {
                 using Varastonhallinta varastonhallinta = new(); // using varmistaa ettätietokantayhteys hävitetää käytön jälkeen
                 IQueryable<Tuote> kaikkiTuotteet = varastonhallinta.Tuotteet;
-
+                int protection = 1;
+                while (true)
+                {
+                    if (varastonhallinta.Tuotteet.Find(protection) is null)
+                        break;
+                    else
+                        protection++;
+                }
 
                 Tuote tuotteet = new()
                 {
-                    Id = kaikkiTuotteet.Count()+1,
+                    Id = protection,
                     Tuotenimi = newTuoteNimi,
                     Tuotteenhinta = newTuotteenHinta,
                     Varastosaldo = newVarastonSaldo
@@ -89,15 +140,26 @@
                 return affected == 1;
             }
 
-            void RemoveProductFromDB()
+            bool RemoveProductFromDB(int id)
             {
+                using Varastonhallinta varastonhallinta = new();
+                var tuote = varastonhallinta.Tuotteet.Find(id);
 
+                if (tuote is null)
+                {
+                    Console.WriteLine($"Tuotetta jonka id on {id} ei löytynyt");
+                    return false;
+                }
+
+                varastonhallinta.Tuotteet.Remove(tuote);
+                int affected = varastonhallinta.SaveChanges();
+                return affected == 1;
             }
 
             void QueryProductCount()
             {
                 using Varastonhallinta varastonhallinta = new();
-                Console.WriteLine("Tuotteet ja niiden määrät:");
+                Console.WriteLine("Varastossa on tämän verran:");
                 IQueryable<Tuote>? kaikkiTuotteet = varastonhallinta.Tuotteet;
 
                 // Jos hakutulos on tyhjä
@@ -107,9 +169,11 @@
                     return;
                 }
 
+                Console.WriteLine("Id, Tuote, Varastosaldo");
+
                 foreach (Tuote tuote in kaikkiTuotteet)
                 {
-                    Console.WriteLine("Tuotetta: " + tuote.Tuotenimi + " on " + tuote.Varastosaldo + " varastossa");
+                    Console.WriteLine(tuote.Id + " " + tuote.Tuotenimi + " " + tuote.Varastosaldo + " kpl");
                 }
             }
              
@@ -123,17 +187,31 @@
                 if (kaikkiTuottteet is null)
                 {
                     Console.WriteLine("Yhtään tuotetta ei ole vielä lisätty tietokantaan");
+                    return;
                 }
+
+                Console.WriteLine("Id, Tuote");
 
                 foreach (Tuote tuote in kaikkiTuottteet)
                 {
-                    Console.WriteLine(tuote.Tuotenimi);
+                    Console.WriteLine(tuote.Id + " " + tuote.Tuotenimi);
                 }
             }
 
-            void ChangeProductNameInDB()
+            bool ChangeProductNameInDB(int id, string uusiNimi)
             {
+                using Varastonhallinta varastonhallinta = new();
+                Tuote tuote = varastonhallinta.Tuotteet.Find(id);
+                if (tuote is null)
+                {
+                    Console.WriteLine($"Tuotetta jonka id on {id} ei löytynyt");
+                    return false;
+                }
 
+                tuote.Tuotenimi = uusiNimi;
+                varastonhallinta.Tuotteet.Update(tuote);
+                int affected = varastonhallinta.SaveChanges();
+                return affected == 1;
             }
         }
     }
